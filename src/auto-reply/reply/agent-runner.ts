@@ -480,6 +480,7 @@ export async function runReplyAgent(params: {
       sessionKey,
       usage,
       lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,
+      savedUsage: runResult.meta?.agentMeta?.savedUsage,
       promptTokens,
       modelUsed,
       providerUsed,
@@ -587,6 +588,7 @@ export async function runReplyAgent(params: {
         : undefined;
       let formatted = formatResponseUsageLine({
         usage,
+        savedUsage: runResult.meta?.agentMeta?.savedUsage,
         showCost,
         costConfig,
       });

@@ -43,6 +43,7 @@ export async function persistSessionUsageUpdate(params: {
    * than the sum of input tokens across all API calls in the run.
    */
   lastCallUsage?: NormalizedUsage;
+  savedUsage?: NormalizedUsage;
   modelUsed?: string;
   providerUsed?: string;
   contextTokensUsed?: number;
@@ -83,11 +84,14 @@ export async function persistSessionUsageUpdate(params: {
                 promptTokens: params.promptTokens,
               })
             : undefined;
+          const savedTotal = params.savedUsage?.total ??
+            (params.savedUsage?.input ?? 0) + (params.savedUsage?.output ?? 0);
           const patch: Partial<SessionEntry> = {
             inputTokens: input,
             outputTokens: output,
             cacheRead: params.usage?.cacheRead ?? 0,
             cacheWrite: params.usage?.cacheWrite ?? 0,
+            savedTokens: (entry.savedTokens ?? 0) + savedTotal,
             // Missing a last-call snapshot means context utilization is stale/unknown.
             totalTokens,
             totalTokensFresh: typeof totalTokens === "number",

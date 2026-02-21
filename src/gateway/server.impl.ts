@@ -668,6 +668,26 @@ export async function startGatewayServer(
     }));
   }
 
+  // Start IdleService for background tasks
+  let idleService: any = null;
+  if (!minimalTestGateway && cfgAtStart.waterfall?.rag?.enabled) {
+    try {
+      const { IdleService } = await import("../infra/idle-service.js");
+      const { memorySynthesizerTask } = await import("../infra/idle/memory-synthesizer.js");
+      const { codebaseIndexerTask } = await import("../infra/idle/codebase-indexer.js");
+      
+      idleService = new IdleService(cfgAtStart, (taskName, summary) => {
+        log.info(`[idle-service] ${taskName}: ${summary}`);
+      });
+      idleService.registerTask(memorySynthesizerTask);
+      idleService.registerTask(codebaseIndexerTask);
+      idleService.start();
+      log.info("[idle-service] Started background tasks");
+    } catch (err) {
+      log.warn(`[idle-service] Failed to start: ${err}`);
+    }
+  }
+
   // Run gateway_start plugin hook (fire-and-forget)
   if (!minimalTestGateway) {
     const hookRunner = getGlobalHookRunner();
@@ -741,6 +761,7 @@ export async function startGatewayServer(
     clients,
     configReloader,
     browserControl,
+    idleService,
     wss,
     httpServer,
     httpServers,

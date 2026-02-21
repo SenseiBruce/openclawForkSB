@@ -13,6 +13,7 @@ import {
   SessionSchema,
   SessionSendPolicySchema,
 } from "./zod-schema.session.js";
+import { WaterfallSchema, ProvidersConfigSchema } from "./zod-schema.waterfall.js";
 
 const BrowserSnapshotDefaultsSchema = z
   .object({
@@ -576,6 +577,8 @@ export const OpenClawSchema = z
       .strict()
       .optional(),
     memory: MemorySchema,
+    waterfall: WaterfallSchema,
+    providers: ProvidersConfigSchema,
     skills: z
       .object({
         allowBundled: z.array(z.string()).optional(),

@@ -28,6 +28,17 @@ export type EmbeddedPiAgentMeta = {
     cacheWrite?: number;
     total?: number;
   };
+  /**
+   * Tokens processed by local/free models (worker tier) that don't incur API costs.
+   * Tracked separately from `usage` to show cost savings from waterfall routing.
+   */
+  savedUsage?: {
+    input?: number;
+    output?: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    total?: number;
+  };
 };
 
 export type EmbeddedPiRunMeta = {

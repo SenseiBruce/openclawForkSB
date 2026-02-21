@@ -75,6 +75,7 @@ export const formatBunFetchSocketError = (message: string) => {
 
 export const formatResponseUsageLine = (params: {
   usage?: NormalizedUsage;
+  savedUsage?: NormalizedUsage;
   showCost: boolean;
   costConfig?: {
     input: number;
@@ -107,8 +108,10 @@ export const formatResponseUsageLine = (params: {
         })
       : undefined;
   const costLabel = params.showCost ? formatUsd(cost) : undefined;
+  const savedTotal = params.savedUsage?.total ?? 0;
+  const savedLabel = savedTotal > 0 ? ` · saved ${formatTokenCount(savedTotal)}` : "";
   const suffix = costLabel ? ` · est ${costLabel}` : "";
-  return `Usage: ${inputLabel} in / ${outputLabel} out${suffix}`;
+  return `Usage: ${inputLabel} in / ${outputLabel} out${suffix}${savedLabel}`;
 };
 
 export const appendUsageLine = (payloads: ReplyPayload[], line: string): ReplyPayload[] => {

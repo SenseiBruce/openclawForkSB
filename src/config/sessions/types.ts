@@ -80,6 +80,7 @@ export type SessionEntry = {
   totalTokensFresh?: boolean;
   cacheRead?: number;
   cacheWrite?: number;
+  savedTokens?: number;
   modelProvider?: string;
   model?: string;
   /**

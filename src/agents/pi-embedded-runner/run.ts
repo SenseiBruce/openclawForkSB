@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
+import { VectorStoreService } from "../../memory/VectorStoreService.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
@@ -280,24 +281,199 @@ export async function runEmbeddedPiAgent(
         log.info(`[hooks] model overridden to ${modelId}`);
       }
 
+      // Waterfall Tier Routing: Detect intent and select appropriate model
+      let selectedProvider = provider;
+      let selectedModelId = modelId;
+      let waterfallTier: "worker" | "manager" | "artist" = "manager";
+      let ragContext = "";
+      const savedUsageAccumulator = createUsageAccumulator();
+
+      const waterfallEnabled = params.config?.waterfall !== undefined;
+      if (waterfallEnabled) {
+        const { detectIntent, selectModelForIntent, ROUTER_PROMPT } =
+          await import("../waterfall-routing.js");
+        let intent = detectIntent(params.prompt);
+        log.info(`[waterfall] Initial keyword intent: ${intent.toUpperCase()}`);
+
+        const aiRouterEnabled = params.config?.waterfall?.aiRouter === true;
+
+        if (intent === "general" && aiRouterEnabled) {
+          try {
+            const workerChoice = selectModelForIntent("data", params.config);
+            const {
+              model: routeModel,
+              authStorage: routeAuthStorage,
+              modelRegistry: routeModelRegistry,
+            } = resolveModel(workerChoice.provider, workerChoice.model, agentDir, params.config);
+
+            if (routeModel) {
+              try {
+                const routeAuth = await getApiKeyForModel({
+                  model: routeModel,
+                  cfg: params.config,
+                  agentDir,
+                });
+                if (routeAuth.apiKey) {
+                  routeAuthStorage.setRuntimeApiKey(routeModel.provider, routeAuth.apiKey);
+                }
+              } catch (authErr) {
+                log.debug(`[waterfall] AI Router auth resolution failed: ${authErr}`);
+              }
+
+              const routePrompt = `User Prompt: "${params.prompt}"\n\nTask: Classify this prompt based on the instructions.`;
+              log.info(
+                `[waterfall] AI Router active. Sending prompt to ${workerChoice.provider}/${workerChoice.model}`,
+              );
+              const routeAttempt = await runEmbeddedAttempt({
+                ...params,
+                prompt: routePrompt,
+                extraSystemPrompt: ROUTER_PROMPT,
+                provider: workerChoice.provider,
+                modelId: workerChoice.model,
+                model: routeModel,
+                authStorage: routeAuthStorage,
+                modelRegistry: routeModelRegistry,
+                disableTools: true,
+                thinkLevel: "off",
+                sessionId: `router-${params.sessionId}`,
+                sessionFile: undefined,
+                promptMode: "none",
+                images: [],
+                enforceFinalTag: false,
+              });
+
+              mergeUsageIntoAccumulator(savedUsageAccumulator, routeAttempt.attemptUsage);
+
+              const aiChoice = routeAttempt.assistantTexts.join(" ").trim().toLowerCase();
+              log.info(`[waterfall] AI Router raw response: "${aiChoice}"`);
+
+              if (aiChoice === "worker" || aiChoice === "data") {
+                intent = "data";
+                log.info(`[waterfall] AI Router reclassified intent to DATA`);
+              } else if (aiChoice === "creative" || aiChoice === "artist") {
+                intent = "creative";
+                log.info(`[waterfall] AI Router reclassified intent to CREATIVE`);
+              }
+            }
+          } catch (err) {
+            log.warn(`[waterfall] AI routing failed, falling back to keyword intent: ${err}`);
+          }
+        }
+
+        const modelChoice = selectModelForIntent(intent, params.config);
+        selectedProvider = modelChoice.provider;
+        selectedModelId = modelChoice.model;
+
+        if (intent === "data") {
+          waterfallTier = "worker";
+          log.info(
+            `[waterfall] Routing to Worker tier (${selectedProvider}/${selectedModelId})`,
+          );
+        } else if (intent === "creative") {
+          waterfallTier = "artist";
+          log.info(
+            `[waterfall] Routing to Artist tier (${selectedProvider}/${selectedModelId})`,
+          );
+        } else {
+          waterfallTier = "manager";
+          log.info(
+            `[waterfall] Routing to Manager tier (${selectedProvider}/${selectedModelId})`,
+          );
+        }
+
+        const ragConfig = params.config?.waterfall?.rag;
+        if (ragConfig?.enabled) {
+          try {
+            log.info(`[rag] Fetching long-term memory...`);
+            const workerChoice = selectModelForIntent("data", params.config);
+            const {
+              model: ragModel,
+              authStorage: ragAuthStorage,
+              modelRegistry: ragModelRegistry,
+            } = resolveModel(workerChoice.provider, workerChoice.model, agentDir, params.config);
+
+            if (ragModel) {
+              try {
+                const ragAuth = await getApiKeyForModel({
+                  model: ragModel,
+                  cfg: params.config,
+                  agentDir,
+                });
+                if (ragAuth.apiKey) {
+                  ragAuthStorage.setRuntimeApiKey(ragModel.provider, ragAuth.apiKey);
+                }
+              } catch (authErr) {
+                log.debug(`[rag] RAG auth resolution failed: ${authErr}`);
+              }
+
+              const keywordPrompt = `User Prompt: "${params.prompt}"\n\nTask: Extract the core subject of this query for a database search. Output ONLY the keyword.`;
+              log.info(`[rag] Extracting search keyword using ${workerChoice.model}...`);
+
+              const keywordAttempt = await runEmbeddedAttempt({
+                ...params,
+                prompt: keywordPrompt,
+                provider: workerChoice.provider,
+                modelId: workerChoice.model,
+                model: ragModel,
+                authStorage: ragAuthStorage,
+                modelRegistry: ragModelRegistry,
+                disableTools: true,
+                thinkLevel: "off",
+                sessionId: `rag-extract-${params.sessionId}`,
+                sessionFile: undefined,
+                promptMode: "none",
+                images: [],
+                enforceFinalTag: false,
+              });
+
+              const keyword = keywordAttempt.assistantTexts.join(" ").trim();
+              log.info(`[rag] Extracted keyword: "${keyword}"`);
+              mergeUsageIntoAccumulator(savedUsageAccumulator, keywordAttempt.attemptUsage);
+
+              if (keyword && keyword.toLowerCase() !== "none") {
+                const vectorStore = VectorStoreService.getInstance({
+                  dbPath: ragConfig.dbPath || "./data/memory.lance",
+                  embeddingModel: ragConfig.embeddingModel || "nomic-embed-text",
+                  localUrl: params.config?.waterfall?.localUrl || "http://localhost:11434/v1",
+                });
+
+                const memories = await vectorStore.queryMemory(keyword, 3);
+                if (memories.length > 0) {
+                  const memoryText = memories
+                    .map((m) => `- [${m.metadata.category || "Fact"}]: ${m.text}`)
+                    .join("\n");
+
+                  ragContext = `\n\n## RELEVANT LONG-TERM MEMORY\n${memoryText}`;
+                  log.info(
+                    `[rag] Injected ${memories.length} relevant memories into system prompt.`,
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            log.warn(`[rag] Memory retrieval failed: ${err}`);
+          }
+        }
+      }
+
       const { model, error, authStorage, modelRegistry } = resolveModel(
-        provider,
-        modelId,
+        selectedProvider,
+        selectedModelId,
         agentDir,
         params.config,
       );
       if (!model) {
-        throw new FailoverError(error ?? `Unknown model: ${provider}/${modelId}`, {
+        throw new FailoverError(error ?? `Unknown model: ${selectedProvider}/${selectedModelId}`, {
           reason: "model_not_found",
-          provider,
-          model: modelId,
+          provider: selectedProvider,
+          model: selectedModelId,
         });
       }
 
       const ctxInfo = resolveContextWindowInfo({
         cfg: params.config,
-        provider,
-        modelId,
+        provider: selectedProvider,
+        modelId: selectedModelId,
         modelContextWindow: model.contextWindow,
         defaultTokens: DEFAULT_CONTEXT_TOKENS,
       });
@@ -308,16 +484,16 @@ export async function runEmbeddedPiAgent(
       });
       if (ctxGuard.shouldWarn) {
         log.warn(
-          `low context window: ${provider}/${modelId} ctx=${ctxGuard.tokens} (warn<${CONTEXT_WINDOW_WARN_BELOW_TOKENS}) source=${ctxGuard.source}`,
+          `low context window: ${selectedProvider}/${selectedModelId} ctx=${ctxGuard.tokens} (warn<${CONTEXT_WINDOW_WARN_BELOW_TOKENS}) source=${ctxGuard.source}`,
         );
       }
       if (ctxGuard.shouldBlock) {
         log.error(
-          `blocked model (context window too small): ${provider}/${modelId} ctx=${ctxGuard.tokens} (min=${CONTEXT_WINDOW_HARD_MIN_TOKENS}) source=${ctxGuard.source}`,
+          `blocked model (context window too small): ${selectedProvider}/${selectedModelId} ctx=${ctxGuard.tokens} (min=${CONTEXT_WINDOW_HARD_MIN_TOKENS}) source=${ctxGuard.source}`,
         );
         throw new FailoverError(
           `Model context window too small (${ctxGuard.tokens} tokens). Minimum is ${CONTEXT_WINDOW_HARD_MIN_TOKENS}.`,
-          { reason: "unknown", provider, model: modelId },
+          { reason: "unknown", provider: selectedProvider, model: selectedModelId },
         );
       }
 
@@ -557,14 +733,15 @@ export async function runEmbeddedPiAgent(
             skillsSnapshot: params.skillsSnapshot,
             prompt,
             images: params.images,
-            disableTools: params.disableTools,
-            provider,
-            modelId,
+            disableTools: params.disableTools || waterfallTier === "worker",
+            toolAllowlist: waterfallTier === "worker" ? ["save_memory"] : undefined,
+            provider: selectedProvider,
+            modelId: selectedModelId,
             model,
             authStorage,
             modelRegistry,
             agentId: workspaceResolution.agentId,
-            thinkLevel,
+            thinkLevel: waterfallTier === "worker" ? "off" : thinkLevel,
             verboseLevel: params.verboseLevel,
             reasoningLevel: params.reasoningLevel,
             toolResultFormat: resolvedToolResultFormat,
@@ -585,7 +762,12 @@ export async function runEmbeddedPiAgent(
             onReasoningEnd: params.onReasoningEnd,
             onToolResult: params.onToolResult,
             onAgentEvent: params.onAgentEvent,
-            extraSystemPrompt: params.extraSystemPrompt,
+            extraSystemPrompt:
+              (params.extraSystemPrompt ??
+                (waterfallTier === "worker"
+                  ? "You are a specialized data processing model. Provide the requested output directly. Avoid conversational filler."
+                  : "")) + ragContext || undefined,
+            promptMode: waterfallTier === "worker" ? "local-minimal" : undefined,
             inputProvenance: params.inputProvenance,
             streamParams: params.streamParams,
             ownerNumbers: params.ownerNumbers,
@@ -602,7 +784,11 @@ export async function runEmbeddedPiAgent(
           } = attempt;
           const lastAssistantUsage = normalizeUsage(lastAssistant?.usage as UsageLike);
           const attemptUsage = attempt.attemptUsage ?? lastAssistantUsage;
-          mergeUsageIntoAccumulator(usageAccumulator, attemptUsage);
+          if (waterfallTier === "worker") {
+            mergeUsageIntoAccumulator(savedUsageAccumulator, attemptUsage);
+          } else {
+            mergeUsageIntoAccumulator(usageAccumulator, attemptUsage);
+          }
           // Keep prompt size from the latest model call so session totalTokens
           // reflects current context usage, not accumulated tool-loop usage.
           lastRunPromptUsage = lastAssistantUsage ?? attemptUsage;
@@ -1026,11 +1212,13 @@ export async function runEmbeddedPiAgent(
           // the final call, giving an accurate snapshot of current context.
           const lastCallUsage = normalizeUsage(lastAssistant?.usage as UsageLike);
           const promptTokens = derivePromptTokens(lastRunPromptUsage);
+          const savedUsage = toNormalizedUsage(savedUsageAccumulator);
           const agentMeta: EmbeddedPiAgentMeta = {
             sessionId: sessionIdUsed,
-            provider: lastAssistant?.provider ?? provider,
+            provider: lastAssistant?.provider ?? selectedProvider,
             model: lastAssistant?.model ?? model.id,
             usage,
+            savedUsage,
             lastCallUsage: lastCallUsage ?? undefined,
             promptTokens,
             compactionCount: autoCompactionCount > 0 ? autoCompactionCount : undefined,
