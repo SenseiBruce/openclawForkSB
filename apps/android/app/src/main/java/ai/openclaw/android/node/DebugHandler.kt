@@ -4,11 +4,14 @@ import android.content.Context
 import ai.openclaw.android.BuildConfig
 import ai.openclaw.android.gateway.DeviceIdentityStore
 import ai.openclaw.android.gateway.GatewaySession
+import ai.openclaw.android.security.RuntimeSecretSnapshot
+import ai.openclaw.android.security.SecretRedactor
 import kotlinx.serialization.json.JsonPrimitive
 
 class DebugHandler(
   private val appContext: Context,
   private val identityStore: DeviceIdentityStore,
+  private val runtimeSecrets: () -> RuntimeSecretSnapshot = { RuntimeSecretSnapshot.empty() },
 ) {
 
   fun handleEd25519(): GatewaySession.InvokeResult {
@@ -65,7 +68,11 @@ class DebugHandler(
       val diagnostics = results.joinToString("\n")
       return GatewaySession.InvokeResult.ok("""{"diagnostics":${JsonPrimitive(diagnostics)}}""")
     } catch (e: Throwable) {
-      return GatewaySession.InvokeResult.error(code = "ED25519_TEST_FAILED", message = "${e.javaClass.simpleName}: ${e.message}\n${e.stackTraceToString().take(500)}")
+      val crashText = "${e.javaClass.simpleName}: ${e.message}\n${e.stackTraceToString().take(500)}"
+      return GatewaySession.InvokeResult.error(
+        code = "ED25519_TEST_FAILED",
+        message = SecretRedactor.redact(crashText, runtimeSecrets()),
+      )
     }
   }
 
@@ -113,6 +120,7 @@ class DebugHandler(
     val camLog = if (camLogFile.exists() && camLogFile.length() > 0) {
       "\n--- camera_debug.log ---\n" + camLogFile.readText().take(4000)
     } else ""
-    return GatewaySession.InvokeResult.ok("""{"logs":${JsonPrimitive(info + logResult + camLog)}}""")
+    val combined = SecretRedactor.redact(info + logResult + camLog, runtimeSecrets())
+    return GatewaySession.InvokeResult.ok("""{"logs":${JsonPrimitive(combined)}}""")
   }
 }
