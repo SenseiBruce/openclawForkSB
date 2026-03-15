@@ -24,7 +24,6 @@ import ai.openclaw.android.voice.TalkModeManager
 import ai.openclaw.android.voice.VoiceConversationEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,10 +37,33 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
 class NodeRuntime(context: Context) {
+  data class ChannelConnectionState(
+    val id: String,
+    val label: String,
+    val state: String,
+    val detail: String,
+  )
+
+  data class OperationsLogEntry(
+    val timestampMs: Long,
+    val level: String,
+    val source: String,
+    val message: String,
+  )
+
+  data class GatewayDiagnostics(
+    val portBinding: String,
+    val authSession: String,
+    val lastRestartReason: String,
+    val lastUpdatedMs: Long,
+  )
+
   private val appContext = context.applicationContext
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -193,6 +215,23 @@ class NodeRuntime(context: Context) {
   private val _statusText = MutableStateFlow("Offline")
   val statusText: StateFlow<String> = _statusText.asStateFlow()
 
+  private val _operationsChannelStates = MutableStateFlow<List<ChannelConnectionState>>(emptyList())
+  val operationsChannelStates: StateFlow<List<ChannelConnectionState>> = _operationsChannelStates.asStateFlow()
+
+  private val _operationsLogs = MutableStateFlow<List<OperationsLogEntry>>(emptyList())
+  val operationsLogs: StateFlow<List<OperationsLogEntry>> = _operationsLogs.asStateFlow()
+
+  private val _operationsDiagnostics =
+    MutableStateFlow(
+      GatewayDiagnostics(
+        portBinding = "Unknown",
+        authSession = "Unknown",
+        lastRestartReason = "Unknown",
+        lastUpdatedMs = System.currentTimeMillis(),
+      ),
+    )
+  val operationsDiagnostics: StateFlow<GatewayDiagnostics> = _operationsDiagnostics.asStateFlow()
+
   private val _pendingGatewayTrust = MutableStateFlow<GatewayTrustPrompt?>(null)
   val pendingGatewayTrust: StateFlow<GatewayTrustPrompt?> = _pendingGatewayTrust.asStateFlow()
 
@@ -234,6 +273,8 @@ class NodeRuntime(context: Context) {
   private var operatorConnected = false
   private var operatorStatusText: String = "Offline"
   private var nodeStatusText: String = "Offline"
+  private var operationsLogsCursor: Long? = null
+  private var operationsLastRestartReason: String = "Unknown"
 
   private val operatorSession =
     GatewaySession(
@@ -591,6 +632,15 @@ class NodeRuntime(context: Context) {
           canvas.setDebugStatus(status, server ?: remote)
         }
     }
+
+    scope.launch {
+      while (true) {
+        if (operatorConnected) {
+          refreshOperationsSnapshot()
+        }
+        delay(6_000)
+      }
+    }
   }
 
   fun setForeground(value: Boolean) {
@@ -729,6 +779,164 @@ class NodeRuntime(context: Context) {
     _pendingGatewayTrust.value = null
     operatorSession.disconnect()
     nodeSession.disconnect()
+  }
+
+  fun restartGatewayRuntime() {
+    operationsLastRestartReason = "Manual restart requested from Android"
+    appendOperationsLog(
+      level = "info",
+      source = "operations",
+      message = operationsLastRestartReason,
+    )
+    _operationsDiagnostics.value =
+      _operationsDiagnostics.value.copy(
+        lastRestartReason = operationsLastRestartReason,
+        lastUpdatedMs = System.currentTimeMillis(),
+      )
+    refreshGatewayConnection()
+  }
+
+  private fun appendOperationsLog(level: String, source: String, message: String) {
+    val next =
+      OperationsLogEntry(
+        timestampMs = System.currentTimeMillis(),
+        level = level,
+        source = source,
+        message = message,
+      )
+    _operationsLogs.value = (_operationsLogs.value + next).takeLast(300)
+  }
+
+  private suspend fun refreshOperationsSnapshot() {
+    if (!operatorConnected) {
+      _operationsChannelStates.value = emptyList()
+      return
+    }
+
+    try {
+      val channelsRaw = operatorSession.request("channels.status", "{\"probe\":true,\"timeoutMs\":8000}", timeoutMs = 12_000)
+      val channelsObj = json.parseToJsonElement(channelsRaw).asObjectOrNull()
+      val channelsMap = channelsObj?.get("channelAccounts")?.asObjectOrNull()
+      val states = mutableListOf<ChannelConnectionState>()
+      channelsMap?.forEach { (channelId, entry) ->
+        val accounts = entry.asArrayOrNull().orEmpty()
+        if (accounts.isEmpty()) {
+          states +=
+            ChannelConnectionState(
+              id = channelId,
+              label = channelId,
+              state = "unknown",
+              detail = "No account data",
+            )
+        } else {
+          accounts.forEach { account ->
+            val accountObj = account.asObjectOrNull() ?: return@forEach
+            val accountId = accountObj["accountId"].asStringOrNull()?.trim().orEmpty().ifEmpty { "default" }
+            val state = accountObj["state"].asStringOrNull()?.trim().orEmpty().ifEmpty { "unknown" }
+            val detail = accountObj["detail"].asStringOrNull()?.trim().orEmpty().ifEmpty { "No detail" }
+            val label = if (accountId == "default") channelId else "$channelId · $accountId"
+            states += ChannelConnectionState(id = "$channelId:$accountId", label = label, state = state, detail = detail)
+          }
+        }
+      }
+      _operationsChannelStates.value = states.sortedBy { it.label }
+    } catch (err: Throwable) {
+      appendOperationsLog(
+        level = "warn",
+        source = "channels.status",
+        message = "Unable to refresh channel states: ${err.message ?: err::class.java.simpleName}",
+      )
+    }
+
+    try {
+      val logsRaw =
+        operatorSession.request(
+          "logs.tail",
+          buildJsonObject {
+            if (operationsLogsCursor != null) {
+              put("cursor", JsonPrimitive(operationsLogsCursor!!))
+            }
+            put("limit", JsonPrimitive(120))
+            put("maxBytes", JsonPrimitive(220_000))
+          }.toString(),
+          timeoutMs = 10_000,
+        )
+      val logsObj = json.parseToJsonElement(logsRaw).asObjectOrNull()
+      operationsLogsCursor = logsObj?.get("cursor")?.asLongOrNull() ?: operationsLogsCursor
+      val lines = logsObj?.get("lines")?.asArrayOrNull().orEmpty()
+      if (lines.isNotEmpty()) {
+        val parsedLines = lines.mapNotNull { it.asStringOrNull() }
+        val redacted = parsedLines.map(::redactLogLine)
+        redacted.forEach { line ->
+          val level =
+            when {
+              line.contains("error", ignoreCase = true) || line.contains("failed", ignoreCase = true) -> "error"
+              line.contains("warn", ignoreCase = true) -> "warn"
+              else -> "info"
+            }
+          appendOperationsLog(level = level, source = "gateway", message = line)
+        }
+        operationsLastRestartReason =
+          redacted.lastOrNull { it.contains("restartReason=", ignoreCase = true) }
+            ?.substringAfter("restartReason=", missingDelimiterValue = "")
+            ?.trim()
+            ?.ifEmpty { operationsLastRestartReason }
+            ?: operationsLastRestartReason
+      }
+    } catch (err: Throwable) {
+      appendOperationsLog(
+        level = "warn",
+        source = "logs.tail",
+        message = "Unable to load logs: ${err.message ?: err::class.java.simpleName}",
+      )
+    }
+
+    try {
+      val statusRaw = operatorSession.request("status", "{}", timeoutMs = 8_000)
+      val statusObj = json.parseToJsonElement(statusRaw).asObjectOrNull()
+      val sessionCount = statusObj?.get("sessions")?.asObjectOrNull()?.get("count")?.asIntOrNull() ?: 0
+      val authSession = if (sessionCount > 0) "Valid ($sessionCount active sessions)" else "No active sessions"
+      val endpoint = connectedEndpoint
+      val expectedPort = endpoint?.port
+      val remote = _remoteAddress.value.orEmpty()
+      val portBound =
+        if (expectedPort != null && remote.contains(":$expectedPort")) {
+          "Bound to ${endpoint.host}:$expectedPort"
+        } else if (expectedPort != null) {
+          "Expected ${endpoint.host}:$expectedPort"
+        } else {
+          "No endpoint"
+        }
+      _operationsDiagnostics.value =
+        GatewayDiagnostics(
+          portBinding = portBound,
+          authSession = authSession,
+          lastRestartReason = operationsLastRestartReason,
+          lastUpdatedMs = System.currentTimeMillis(),
+        )
+    } catch (err: Throwable) {
+      appendOperationsLog(
+        level = "warn",
+        source = "status",
+        message = "Unable to load diagnostics: ${err.message ?: err::class.java.simpleName}",
+      )
+    }
+  }
+
+  private fun redactLogLine(line: String): String {
+    val emailPattern = Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")
+    val tokenPattern = Regex("(?i)(token|password|secret|authorization)[=: ]+[^\\s,;]+")
+    val phonePattern = Regex("\\+?[0-9][0-9\\- ]{7,}[0-9]")
+    return line
+      .replace(emailPattern, "[REDACTED_EMAIL]")
+      .replace(tokenPattern) { match ->
+        val key =
+          match.value.substringBefore("=").substringBefore(":").substringBefore(" ").ifEmpty {
+            "secret"
+          }
+        "$key=[REDACTED]"
+      }
+      .replace(phonePattern, "[REDACTED_PHONE]")
   }
 
   fun handleCanvasA2UIActionFromWebView(payloadJson: String) {
@@ -883,3 +1091,17 @@ class NodeRuntime(context: Context) {
   }
 
 }
+
+private fun kotlinx.serialization.json.JsonElement?.asArrayOrNull(): JsonArray? = this as? JsonArray
+
+private fun kotlinx.serialization.json.JsonElement?.asLongOrNull(): Long? =
+  when (this) {
+    is JsonPrimitive -> this.longOrNull
+    else -> null
+  }
+
+private fun kotlinx.serialization.json.JsonElement?.asIntOrNull(): Int? =
+  when (this) {
+    is JsonPrimitive -> this.intOrNull
+    else -> null
+  }

@@ -29,6 +29,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val isConnected: StateFlow<Boolean> = runtime.isConnected
   val isNodeConnected: StateFlow<Boolean> = runtime.nodeConnected
   val statusText: StateFlow<String> = runtime.statusText
+  val operationsChannelStates: StateFlow<List<NodeRuntime.ChannelConnectionState>> = runtime.operationsChannelStates
+  val operationsLogs: StateFlow<List<NodeRuntime.OperationsLogEntry>> = runtime.operationsLogs
+  val operationsDiagnostics: StateFlow<NodeRuntime.GatewayDiagnostics> = runtime.operationsDiagnostics
   val serverName: StateFlow<String?> = runtime.serverName
   val remoteAddress: StateFlow<String?> = runtime.remoteAddress
   val pendingGatewayTrust: StateFlow<NodeRuntime.GatewayTrustPrompt?> = runtime.pendingGatewayTrust
@@ -140,6 +143,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
   fun refreshGatewayConnection() {
     runtime.refreshGatewayConnection()
+  }
+
+  fun restartGatewayRuntime() {
+    runtime.restartGatewayRuntime()
   }
 
   fun connect(endpoint: GatewayEndpoint) {

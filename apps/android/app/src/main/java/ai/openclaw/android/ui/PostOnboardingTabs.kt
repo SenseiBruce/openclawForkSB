@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ScreenShare
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Troubleshoot
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -53,6 +54,7 @@ private enum class HomeTab(
   Chat(label = "Chat", icon = Icons.Default.ChatBubble),
   Voice(label = "Voice", icon = Icons.Default.RecordVoiceOver),
   Screen(label = "Screen", icon = Icons.AutoMirrored.Filled.ScreenShare),
+  Ops(label = "Ops", icon = Icons.Default.Troubleshoot),
   Settings(label = "Settings", icon = Icons.Default.Settings),
 }
 
@@ -119,6 +121,7 @@ fun PostOnboardingTabs(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         HomeTab.Chat -> ChatSheet(viewModel = viewModel)
         HomeTab.Voice -> VoiceTabScreen(viewModel = viewModel)
         HomeTab.Screen -> ScreenTabScreen(viewModel = viewModel)
+        HomeTab.Ops -> OperationsTabScreen(viewModel = viewModel)
         HomeTab.Settings -> SettingsSheet(viewModel = viewModel)
       }
     }
