@@ -51,6 +51,7 @@ class TalkModeManager(
   private val session: GatewaySession,
   private val supportsChatSubscribe: Boolean,
   private val isConnected: () -> Boolean,
+  private val runtimeApiKey: (String) -> String? = { null },
 ) {
   companion object {
     private const val tag = "TalkMode"
@@ -553,6 +554,7 @@ class TalkModeManager(
 
     val apiKey =
       apiKey?.trim()?.takeIf { it.isNotEmpty() }
+        ?: runtimeApiKey(defaultTalkProvider)?.trim()?.takeIf { it.isNotEmpty() }
         ?: System.getenv("ELEVENLABS_API_KEY")?.trim()
     val preferredVoice = resolvedVoice ?: currentVoiceId ?: defaultVoiceId
     val voiceId =
@@ -944,6 +946,7 @@ class TalkModeManager(
     val envVoice = System.getenv("ELEVENLABS_VOICE_ID")?.trim()
     val sagVoice = System.getenv("SAG_VOICE_ID")?.trim()
     val envKey = System.getenv("ELEVENLABS_API_KEY")?.trim()
+    val runtimeKey = runtimeApiKey(defaultTalkProvider)?.trim()
     try {
       val res = session.request("talk.config", """{"includeSecrets":true}""")
       val root = json.parseToJsonElement(res).asObjectOrNull()
@@ -982,7 +985,7 @@ class TalkModeManager(
       defaultOutputFormat = outputFormat ?: defaultOutputFormatFallback
       apiKey =
         if (activeProvider == defaultTalkProvider) {
-          key ?: envKey?.takeIf { it.isNotEmpty() }
+          key ?: runtimeKey?.takeIf { it.isNotEmpty() } ?: envKey?.takeIf { it.isNotEmpty() }
         } else {
           null
         }
@@ -997,7 +1000,7 @@ class TalkModeManager(
       defaultVoiceId = envVoice?.takeIf { it.isNotEmpty() } ?: sagVoice?.takeIf { it.isNotEmpty() }
       defaultModelId = defaultModelIdFallback
       if (!modelOverrideActive) currentModelId = defaultModelId
-      apiKey = envKey?.takeIf { it.isNotEmpty() }
+      apiKey = runtimeKey?.takeIf { it.isNotEmpty() } ?: envKey?.takeIf { it.isNotEmpty() }
       voiceAliases = emptyMap()
       defaultOutputFormat = defaultOutputFormatFallback
       // Keep config load retryable after transient fetch failures.

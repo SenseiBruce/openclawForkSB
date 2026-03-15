@@ -22,6 +22,8 @@ class SecurePrefs(context: Context) {
     private const val voiceWakeModeKey = "voiceWake.mode"
     private const val plainPrefsName = "openclaw.node"
     private const val securePrefsName = "openclaw.node.secure"
+    private const val apiKeyPrefix = "secret.api."
+    private const val channelTokenPrefix = "secret.channel."
   }
 
   private val appContext = context.applicationContext
@@ -226,6 +228,48 @@ class SecurePrefs(context: Context) {
     securePrefs.edit { remove(key) }
   }
 
+  fun setApiKey(provider: String, value: String?) {
+    val normalizedProvider = sanitizeSecretName(provider)
+    if (normalizedProvider.isEmpty()) return
+    val key = "$apiKeyPrefix$normalizedProvider"
+    val trimmed = value?.trim().orEmpty()
+    securePrefs.edit {
+      if (trimmed.isEmpty()) remove(key) else putString(key, trimmed)
+    }
+  }
+
+  fun loadApiKey(provider: String): String? {
+    val normalizedProvider = sanitizeSecretName(provider)
+    if (normalizedProvider.isEmpty()) return null
+    val key = "$apiKeyPrefix$normalizedProvider"
+    return securePrefs.getString(key, null)?.trim()?.takeIf { it.isNotEmpty() }
+  }
+
+  fun setChannelToken(channel: String, value: String?) {
+    val normalizedChannel = sanitizeSecretName(channel)
+    if (normalizedChannel.isEmpty()) return
+    val key = "$channelTokenPrefix$normalizedChannel"
+    val trimmed = value?.trim().orEmpty()
+    securePrefs.edit {
+      if (trimmed.isEmpty()) remove(key) else putString(key, trimmed)
+    }
+  }
+
+  fun loadChannelToken(channel: String): String? {
+    val normalizedChannel = sanitizeSecretName(channel)
+    if (normalizedChannel.isEmpty()) return null
+    val key = "$channelTokenPrefix$normalizedChannel"
+    return securePrefs.getString(key, null)?.trim()?.takeIf { it.isNotEmpty() }
+  }
+
+  fun loadApiKeys(): Map<String, String> {
+    return loadSecretsByPrefix(apiKeyPrefix)
+  }
+
+  fun loadChannelTokens(): Map<String, String> {
+    return loadSecretsByPrefix(channelTokenPrefix)
+  }
+
   private fun createSecurePrefs(context: Context, name: String): SharedPreferences {
     return EncryptedSharedPreferences.create(
       context,
@@ -308,5 +352,21 @@ class SecurePrefs(context: Context) {
     } catch (_: Throwable) {
       defaultWakeWords
     }
+  }
+
+  private fun loadSecretsByPrefix(prefix: String): Map<String, String> {
+    return securePrefs.all.entries.mapNotNull { (key, value) ->
+      val fullKey = key as? String ?: return@mapNotNull null
+      if (!fullKey.startsWith(prefix)) return@mapNotNull null
+      val name = fullKey.removePrefix(prefix).trim()
+      if (name.isEmpty()) return@mapNotNull null
+      val secret = (value as? String)?.trim().orEmpty()
+      if (secret.isEmpty()) return@mapNotNull null
+      name to secret
+    }.toMap()
+  }
+
+  private fun sanitizeSecretName(name: String): String {
+    return name.trim().lowercase().replace(Regex("[^a-z0-9._-]"), "")
   }
 }

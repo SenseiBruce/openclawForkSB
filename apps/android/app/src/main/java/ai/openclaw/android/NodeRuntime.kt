@@ -19,6 +19,7 @@ import ai.openclaw.android.gateway.GatewaySession
 import ai.openclaw.android.gateway.probeGatewayTlsFingerprint
 import ai.openclaw.android.node.*
 import ai.openclaw.android.protocol.OpenClawCanvasA2UIAction
+import ai.openclaw.android.security.RuntimeSecretBridge
 import ai.openclaw.android.voice.MicCaptureManager
 import ai.openclaw.android.voice.TalkModeManager
 import ai.openclaw.android.voice.VoiceConversationEntry
@@ -46,6 +47,7 @@ class NodeRuntime(context: Context) {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
   val prefs = SecurePrefs(appContext)
+  private val runtimeSecretBridge = RuntimeSecretBridge(prefs)
   private val deviceAuthStore = DeviceAuthStore(prefs)
   val canvas = CanvasController()
   val camera = CameraCaptureManager(appContext)
@@ -75,6 +77,7 @@ class NodeRuntime(context: Context) {
   private val debugHandler: DebugHandler = DebugHandler(
     appContext = appContext,
     identityStore = identityStore,
+    runtimeSecrets = { runtimeSecretBridge.currentSnapshot() },
   )
 
   private val appUpdateHandler: AppUpdateHandler = AppUpdateHandler(
@@ -333,6 +336,7 @@ class NodeRuntime(context: Context) {
       session = operatorSession,
       supportsChatSubscribe = false,
       isConnected = { operatorConnected },
+      runtimeApiKey = { provider -> runtimeSecretBridge.apiKey(provider) },
     ).also { speaker ->
       speaker.setPlaybackEnabled(prefs.speakerEnabled.value)
     }
@@ -519,6 +523,8 @@ class NodeRuntime(context: Context) {
   val pendingRunCount: StateFlow<Int> = chat.pendingRunCount
 
   init {
+    runtimeSecretBridge.warmStart()
+
     if (prefs.voiceWakeMode.value != VoiceWakeMode.Off) {
       prefs.setVoiceWakeMode(VoiceWakeMode.Off)
     }
@@ -631,6 +637,18 @@ class NodeRuntime(context: Context) {
 
   fun setManualTls(value: Boolean) {
     prefs.setManualTls(value)
+  }
+
+  fun setRuntimeApiKey(provider: String, value: String?) {
+    runtimeSecretBridge.saveApiKey(provider, value)
+  }
+
+  fun setRuntimeChannelToken(channel: String, value: String?) {
+    runtimeSecretBridge.saveChannelToken(channel, value)
+  }
+
+  fun refreshRuntimeSecrets() {
+    runtimeSecretBridge.refreshInMemorySecrets()
   }
 
   fun setCanvasDebugStatusEnabled(value: Boolean) {
