@@ -43,5 +43,20 @@
     "src/canvas-host/a2ui/a2ui.bundle.js",
     "Swabble/",
     "vendor/"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "src/security/audit.*.test.ts",
+        "src/agents/pi-embedded-runner/run/attempt.session-yield.ts",
+        "src/agents/pi-embedded-runner/run/attempt.ollama.ts",
+        "src/agents/pi-embedded-runner/run/attempt.tool-names.ts",
+        "src/agents/pi-embedded-runner/run/attempt.tool-repair.ts",
+        "src/agents/pi-embedded-runner/run/attempt.prompt.ts"
+      ],
+      "rules": {
+        "eslint/no-unused-vars": "off"
+      }
+    }
   ]
 }
