@@ -48,7 +48,7 @@ import {
 import { enqueueSystemEvent } from "../infra/system-events.js";
 import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
-import logger from "../logging/logger.js";
+import { structuredPinoLogger } from "../logging/logger.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
 import { getGlobalHookRunner, runGlobalGatewayStopSafely } from "../plugins/hook-runner-global.js";
 import { createEmptyPluginRegistry } from "../plugins/registry.js";
@@ -285,7 +285,7 @@ export async function startGatewayServer(
   }
   const gatewayPino = pino({ name: "gateway" });
   gatewayPino.info({ port }, "gateway server starting");
-  logger.info({ port }, "gateway server starting");
+  structuredPinoLogger.info({ port }, "gateway server starting");
   structuredLogger.info({ port }, "gateway server starting");
   const minimalTestGateway =
     process.env.VITEST === "1" && process.env.OPENCLAW_TEST_MINIMAL_GATEWAY === "1";
