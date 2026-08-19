@@ -1,0 +1,13 @@
+# Checkov policy scan for OpenClaw Terraform and Kubernetes IaC.
+framework:
+  - terraform
+  - kubernetes
+  - helm
+  - dockerfile
+
+skip-check:
+  # Fly.io module uses terraform_data to pin the fly.toml contract without a live Fly token.
+  - CKV_TF_1
+
+soft-fail: false
+compact: true
