@@ -1,0 +1,4 @@
+# Locked Python tooling for skill scripts. Prefer `uv sync` or `pip install -r requirements.txt`.
+pyyaml==6.0.2
+pytest==8.3.5
+ruff==0.11.12
