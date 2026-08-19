@@ -78,16 +78,16 @@ struct GatewayEndpointStoreTests {
 
     @Test func resolveGatewayPasswordFallsBackToLaunchd() {
         let snapshot = self.makeLaunchAgentSnapshot(
-            env: ["OPENCLAW_GATEWAY_PASSWORD": "launchd-pass"],
+            env: ["OPENCLAW_GATEWAY_PASSWORD": TestFixtures.dummyPassword],
             token: nil,
-            password: "launchd-pass")
+            password: TestFixtures.dummyPassword)
 
         let password = GatewayEndpointStore._testResolveGatewayPassword(
             isRemote: false,
             root: [:],
             env: [:],
             launchdSnapshot: snapshot)
-        #expect(password == "launchd-pass")
+        #expect(password == TestFixtures.dummyPassword)
     }
 
     @Test func `connection mode resolver prefers config mode over defaults`() {
@@ -196,7 +196,7 @@ struct GatewayEndpointStoreTests {
         let snapshot = self.makeLaunchAgentSnapshot(
             env: [:],
             token: "launchd-token",
-            password: "launchd-pass")
+            password: TestFixtures.dummyPassword)
         let root: [String: Any] = [
             "gateway": [
                 "bind": "tailnet",
@@ -216,7 +216,7 @@ struct GatewayEndpointStoreTests {
 
         #expect(config.url.absoluteString == "wss://100.64.1.8:18789")
         #expect(config.token == "launchd-token")
-        #expect(config.password == "launchd-pass")
+        #expect(config.password == TestFixtures.dummyPassword)
     }
 
     @Test func `dashboard URL uses local base path in local mode`() throws {
@@ -262,7 +262,7 @@ struct GatewayEndpointStoreTests {
         let config: GatewayConnection.Config = try (
             url: #require(URL(string: "ws://127.0.0.1:18789")),
             token: "abc123",
-            password: "sekret") // pragma: allowlist secret
+            password: TestFixtures.dummyPassword)
 
         let url = try GatewayEndpointStore.dashboardURL(
             for: config,

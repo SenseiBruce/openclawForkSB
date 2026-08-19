@@ -24,7 +24,7 @@ struct TailscaleIntegrationSectionTests {
         view.setTestingState(
             mode: "serve",
             requireCredentials: true,
-            password: "secret",
+            password: TestFixtures.dummyPassword,
             statusMessage: "Running")
         _ = view.body
     }

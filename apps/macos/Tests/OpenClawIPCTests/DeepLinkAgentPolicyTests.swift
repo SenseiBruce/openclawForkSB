@@ -53,7 +53,7 @@ struct DeepLinkAgentPolicyTests {
             to: "  +15551234567 ",
             channel: "whatsapp",
             timeoutSeconds: 10,
-            key: "secret")
+            key: TestFixtures.dummyToken)
         let res = DeepLinkAgentPolicy.effectiveDelivery(link: link, allowUnattended: true)
         #expect(res.deliver == true)
         #expect(res.to == "+15551234567")
@@ -69,7 +69,7 @@ struct DeepLinkAgentPolicyTests {
             to: "+15551234567",
             channel: "webchat",
             timeoutSeconds: 10,
-            key: "secret")
+            key: TestFixtures.dummyToken)
         let res = DeepLinkAgentPolicy.effectiveDelivery(link: link, allowUnattended: true)
         #expect(res.deliver == false)
         #expect(res.channel == .webchat)

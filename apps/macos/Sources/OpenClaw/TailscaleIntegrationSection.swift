@@ -381,7 +381,7 @@ extension TailscaleIntegrationSection {
     mutating func setTestingState(
         mode: String,
         requireCredentials: Bool,
-        password: String = "secret",
+        password: String = "",
         statusMessage: String? = nil,
         validationMessage: String? = nil)
     {

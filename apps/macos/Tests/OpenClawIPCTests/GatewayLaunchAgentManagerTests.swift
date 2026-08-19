@@ -9,8 +9,8 @@ struct GatewayLaunchAgentManagerTests {
         let plist: [String: Any] = [
             "ProgramArguments": ["openclaw", "gateway-daemon", "--port", "18789", "--bind", "loopback"],
             "EnvironmentVariables": [
-                "OPENCLAW_GATEWAY_TOKEN": " secret ",
-                "OPENCLAW_GATEWAY_PASSWORD": "pw",
+                "OPENCLAW_GATEWAY_TOKEN": " \(TestFixtures.dummyToken) ",
+                "OPENCLAW_GATEWAY_PASSWORD": TestFixtures.dummyPassword,
             ],
         ]
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
@@ -20,8 +20,8 @@ struct GatewayLaunchAgentManagerTests {
         let snapshot = try #require(LaunchAgentPlist.snapshot(url: url))
         #expect(snapshot.port == 18789)
         #expect(snapshot.bind == "loopback")
-        #expect(snapshot.token == "secret")
-        #expect(snapshot.password == "pw")
+        #expect(snapshot.token == TestFixtures.dummyToken)
+        #expect(snapshot.password == TestFixtures.dummyPassword)
     }
 
     @Test func `launch agent plist snapshot allows missing bind`() throws {

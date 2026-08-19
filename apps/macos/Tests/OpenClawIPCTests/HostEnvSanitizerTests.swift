@@ -18,7 +18,7 @@ struct HostEnvSanitizerTests {
             overrides: [
                 "LANG": "C",
                 "LC_ALL": "C",
-                "OPENCLAW_TOKEN": "secret",
+                "OPENCLAW_TOKEN": TestFixtures.dummyToken,
                 "PS4": "$(touch /tmp/pwned)",
             ],
             shellWrapper: true)
@@ -30,7 +30,7 @@ struct HostEnvSanitizerTests {
     }
 
     @Test func `sanitize non shell wrapper keeps regular overrides`() {
-        let env = HostEnvSanitizer.sanitize(overrides: ["OPENCLAW_TOKEN": "secret"])
-        #expect(env["OPENCLAW_TOKEN"] == "secret")
+        let env = HostEnvSanitizer.sanitize(overrides: ["OPENCLAW_TOKEN": TestFixtures.dummyToken])
+        #expect(env["OPENCLAW_TOKEN"] == TestFixtures.dummyToken)
     }
 }

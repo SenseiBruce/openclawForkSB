@@ -70,7 +70,7 @@ struct OnboardingRemoteAuthPromptTests {
             authIssue: nil))
         #expect(OnboardingView.shouldShowRemoteTokenField(
             showAdvancedConnection: false,
-            remoteToken: "secret",
+            remoteToken: TestFixtures.dummyToken,
             remoteTokenUnsupported: false,
             authIssue: nil))
         #expect(OnboardingView.shouldShowRemoteTokenField(
