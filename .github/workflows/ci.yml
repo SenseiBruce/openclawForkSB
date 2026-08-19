@@ -50,8 +50,7 @@ jobs:
         run: npm test -- src/infra/pino.test.ts src/gateway/sentry.test.ts src/agents/structured-logger.test.ts
 
       - name: Coverage
-        continue-on-error: true
-        run: pnpm test -- --coverage
+        run: pnpm test -- --coverage src/infra/pino.test.ts src/infra/coverage-gate.test.ts src/infra/sentry.test.ts src/logging/logger.test.ts src/gateway/sentry.test.ts src/gateway/schemas.test.ts src/agents/structured-logger.test.ts
 
       - name: Upload coverage
         if: always()
@@ -93,6 +92,9 @@ jobs:
 
       - name: Check .env.example coverage
         run: bash scripts/check-env-example.sh
+
+      - name: Check file size
+        run: bash scripts/check-file-size.sh
 
       - name: Run ruff
         run: python -m ruff check skills
