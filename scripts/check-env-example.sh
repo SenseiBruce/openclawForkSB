@@ -20,9 +20,19 @@ for path in (root / "src").rglob("*"):
     names.update(pat.findall(text))
     names.update(pat2.findall(text))
 missing = sorted(names - documented)
-if missing:
-    print("env vars referenced in src/ but missing from .env.example:", file=sys.stderr)
-    for name in missing:
+required = {
+    "GH_TOKEN",
+    "GW_TOKEN",
+    "GW_URL",
+    "HOME",
+    "DOCS_I18N_GLOSSARY_BASE",
+    "FIRECRAWL_BASE_URL",
+    "GITHUB_ACTIONS",
+}
+missing_required = sorted(required - documented)
+if missing or missing_required:
+    print("env vars missing from .env.example:", file=sys.stderr)
+    for name in [*missing, *missing_required]:
         print(f"  {name}", file=sys.stderr)
     sys.exit(1)
 print(f"check-env-example: {len(names)} src env vars are documented")
