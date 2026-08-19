@@ -8,6 +8,14 @@
   },
   "rules": {
     "curly": "error",
+    "eslint/max-lines": [
+      "warn",
+      {
+        "max": 500,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
     "eslint-plugin-unicorn/prefer-array-find": "off",
     "eslint/no-await-in-loop": "off",
     "eslint/no-new": "off",

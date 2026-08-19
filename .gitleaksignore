@@ -1,0 +1,2 @@
+# Allowlist only the shared Swift test fixture constant.
+apps/macos/Tests/OpenClawIPCTests/TestFixtures.swift

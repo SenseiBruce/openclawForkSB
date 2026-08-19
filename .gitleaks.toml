@@ -1,0 +1,7 @@
+title = "OpenClaw gitleaks config"
+
+[allowlist]
+description = "Shared dummy credentials used only in Swift unit tests"
+paths = [
+  '''apps/macos/Tests/OpenClawIPCTests/TestFixtures.swift''',
+]
