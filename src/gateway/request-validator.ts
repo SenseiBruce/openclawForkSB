@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { body, validationResult } from "express-validator";
+import { body, check, validationResult } from "express-validator";
 import Joi from "joi";
 import { z } from "zod";
 
@@ -21,6 +21,8 @@ export const gatewayRequestZodSchema = z.object({
 export const gatewayInputValidators = [
   body("tool").isString().notEmpty(),
   body("args").optional().isObject(),
+  body("email").optional().isEmail(),
+  check("operatorEmail").optional().isEmail(),
 ];
 
 export function validateGatewayRequestInput(input: unknown): {
