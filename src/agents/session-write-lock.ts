@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { getProcessStartTime, isPidAlive } from "../shared/pid-alive.js";
 import { resolveProcessScopedMap } from "../shared/process-scoped-map.js";
+import { agentLogger } from "./structured-logger.js";
 
 type LockFilePayload = {
   pid?: number;
@@ -198,9 +199,9 @@ async function runLockWatchdogCheck(nowMs = Date.now()): Promise<number> {
       continue;
     }
 
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[session-write-lock] releasing lock held for ${heldForMs}ms (max=${held.maxHoldMs}ms): ${held.lockPath}`,
+    agentLogger.warn(
+      { heldForMs, maxHoldMs: held.maxHoldMs, lockPath: held.lockPath },
+      "releasing stale session write lock",
     );
 
     const didRelease = await releaseHeldLock(sessionFile, held, { force: true });
