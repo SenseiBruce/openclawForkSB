@@ -58,6 +58,7 @@ import {
   validateRequestFrame,
 } from "../../protocol/index.js";
 import { parseGatewayRole } from "../../role-policy.js";
+import { parseConnectParams, parseRequestFrame } from "../../schemas.js";
 import {
   MAX_BUFFERED_BYTES,
   MAX_PAYLOAD_BYTES,
@@ -301,10 +302,28 @@ export function attachGatewayWsMessageHandler(params: {
         // Handshake must be a normal request:
         // { type:"req", method:"connect", params: ConnectParams }.
         const isRequestFrame = validateRequestFrame(parsed);
+        let zodRequestOk = false;
+        try {
+          parseRequestFrame(parsed);
+          zodRequestOk = true;
+        } catch {
+          zodRequestOk = false;
+        }
+        let zodConnectOk = false;
+        try {
+          if (parsed?.method === "connect") {
+            parseConnectParams(parsed.params);
+            zodConnectOk = true;
+          }
+        } catch {
+          zodConnectOk = false;
+        }
         if (
           !isRequestFrame ||
+          !zodRequestOk ||
           parsed.method !== "connect" ||
-          !validateConnectParams(parsed.params)
+          !validateConnectParams(parsed.params) ||
+          !zodConnectOk
         ) {
           const handshakeError = isRequestFrame
             ? parsed.method === "connect"
@@ -1068,6 +1087,20 @@ export function attachGatewayWsMessageHandler(params: {
           error: errorShape(
             ErrorCodes.INVALID_REQUEST,
             `invalid request frame: ${formatValidationErrors(validateRequestFrame.errors)}`,
+          ),
+        });
+        return;
+      }
+      try {
+        parseRequestFrame(parsed);
+      } catch (err) {
+        send({
+          type: "res",
+          id: (parsed as { id?: unknown })?.id ?? "invalid",
+          ok: false,
+          error: errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            err instanceof Error ? err.message : "invalid request frame",
           ),
         });
         return;
