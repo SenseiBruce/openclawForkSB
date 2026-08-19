@@ -34,6 +34,7 @@ import {
   sendJson,
   sendMethodNotAllowed,
 } from "./http-common.js";
+import { validateToolsInvokeInput } from "./http-input-validation.js";
 import { getBearerToken, getHeader } from "./http-utils.js";
 
 const DEFAULT_BODY_BYTES = 2 * 1024 * 1024;
@@ -173,7 +174,12 @@ export async function handleToolsInvokeHttpRequest(
   if (bodyUnknown === undefined) {
     return true;
   }
-  const body = (bodyUnknown ?? {}) as ToolsInvokeBody;
+  const parsedBody = validateToolsInvokeInput(bodyUnknown ?? {});
+  if (!parsedBody.ok) {
+    sendInvalidRequest(res, parsedBody.error);
+    return true;
+  }
+  const body = parsedBody.value as ToolsInvokeBody;
 
   const toolName = typeof body.tool === "string" ? body.tool.trim() : "";
   if (!toolName) {
