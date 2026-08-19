@@ -1,22 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
-import { createPluginLoaderLogger } from "./logger.js";
+import { describe, expect, it } from "vitest";
+import { pluginLogger } from "./logger.js";
 
-describe("plugins/logger", () => {
-  it("forwards logger methods", () => {
-    const info = vi.fn();
-    const warn = vi.fn();
-    const error = vi.fn();
-    const debug = vi.fn();
-    const logger = createPluginLoaderLogger({ info, warn, error, debug });
-
-    logger.info("i");
-    logger.warn("w");
-    logger.error("e");
-    logger.debug?.("d");
-
-    expect(info).toHaveBeenCalledWith("i");
-    expect(warn).toHaveBeenCalledWith("w");
-    expect(error).toHaveBeenCalledWith("e");
-    expect(debug).toHaveBeenCalledWith("d");
+describe("plugin structured logger", () => {
+  it("creates a pino logger for plugins", () => {
+    expect(pluginLogger.bindings().component).toBe("plugins");
+    const previous = pluginLogger.level;
+    pluginLogger.level = "silent";
+    expect(() => pluginLogger.info("plugin loaded")).not.toThrow();
+    pluginLogger.level = previous;
   });
 });

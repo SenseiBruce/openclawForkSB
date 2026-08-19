@@ -29,6 +29,7 @@ import {
   PortInUseError,
 } from "./infra/ports.js";
 import { assertSupportedRuntime } from "./infra/runtime-guard.js";
+import { initInfraSentry } from "./infra/sentry.js";
 import { installUnhandledRejectionHandler } from "./infra/unhandled-rejections.js";
 import { enableConsoleCapture } from "./logging.js";
 import { runCommandWithTimeout, runExec } from "./process/exec.js";
@@ -37,6 +38,7 @@ import { assertWebChannel, normalizeE164, toWhatsappJid } from "./utils.js";
 loadDotEnv({ quiet: true });
 normalizeEnv();
 initErrorTracking();
+initInfraSentry();
 ensureOpenClawCliOnPath();
 
 // Capture all console output into structured logs while keeping stdout/stderr behavior.
