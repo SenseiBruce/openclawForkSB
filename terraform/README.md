@@ -27,5 +27,7 @@ to `backend.hcl` and run:
 terraform init -backend-config=backend.hcl
 ```
 
-Never commit `*.tfstate`. CI runs `terraform fmt -check`, `terraform validate`,
-tfsec, and checkov on every PR.
+Never commit `*.tfstate`. GitHub Actions workflow `.github/workflows/terraform.yml`
+runs `terraform fmt -check -recursive terraform/`, `terraform validate`, `tfsec terraform`,
+and `checkov -d terraform` on every push and pull request. Encrypted remote state uses
+the `backend "s3"` block in `terraform/main.tf` (bucket, KMS key, DynamoDB lock table).

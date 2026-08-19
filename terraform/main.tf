@@ -5,7 +5,12 @@ terraform {
   # Partial backend config: pass `-backend-config=backend.hcl` in production.
   # CI uses `terraform init -backend=false` so validate can run without credentials.
   backend "s3" {
-    encrypt = true
+    bucket         = "openclaw-terraform-state"
+    key            = "gateway/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    kms_key_id     = "alias/terraform-state"
+    dynamodb_table = "openclaw-terraform-locks"
   }
 
   required_providers {
