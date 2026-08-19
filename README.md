@@ -101,11 +101,16 @@ pnpm install
 pnpm ui:build # auto-installs UI deps on first run
 pnpm build
 
+# Copy env placeholders, then fill only the services you use
+cp .env.example .env
+
 pnpm openclaw onboard --install-daemon
 
 # Dev loop (auto-reload on TS changes)
 pnpm gateway:watch
 ```
+
+VS Code / Cursor: open this repo in a [devcontainer](.devcontainer/devcontainer.json) (`Dev Containers: Reopen in Container`) for Node 22, Python 3.12, and Docker. Terraform for the gateway lives in `terraform/` (fmt/validate/tfsec/checkov run in CI). The Helm chart is `charts/openclaw`.
 
 Note: `pnpm openclaw ...` runs TypeScript directly (via `tsx`). `pnpm build` produces `dist/` for running via Node / the packaged `openclaw` binary.
 

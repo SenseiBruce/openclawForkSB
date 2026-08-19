@@ -89,14 +89,17 @@ Welcome to the lobster tank! 🦞
 
 - Test locally with your OpenClaw instance
 - Run tests: `pnpm build && pnpm check && pnpm test`
+- Behavior changes under `src/` must include a matching spec in the same directory (for example `attempt.ts` + `attempt.test.ts`) in the same commit
+- Run `pnpm typecheck` (`tsc --noEmit`) and `pnpm lint` before opening the PR
 - If you have access to Codex, run `codex review --base origin/main` locally before opening or updating your PR. Treat this as the current highest standard of AI review, even if GitHub Codex review also runs.
-- Ensure CI checks pass
+- Ensure CI checks pass (`test`, `lint`, and `typecheck` are required)
 - Keep PRs focused (one thing per PR; do not mix unrelated concerns)
 - Describe what & why
 - Reply to or resolve bot review conversations you addressed before asking for review again
 - **Include screenshots** — one showing the problem/before, one showing the fix/after (for UI or visual changes)
 - Use American English spelling and grammar in code, comments, docs, and UI strings
 - Do not edit files covered by `CODEOWNERS` security ownership unless a listed owner explicitly asked for the change or is already reviewing it with you. Treat those paths as restricted review surfaces, not opportunistic cleanup targets.
+- Prefer files under 500 LOC; split cohesive submodules rather than growing god files
 
 ## Review Conversations Are Author-Owned
 

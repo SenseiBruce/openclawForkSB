@@ -1,0 +1,27 @@
+{
+  "name": "OpenClaw",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": true
+    }
+  },
+  "forwardPorts": [18789, 18790],
+  "postCreateCommand": "corepack enable && pnpm install && python -m pip install pytest ruff pyyaml",
+  "remoteEnv": {
+    "OPENCLAW_GATEWAY_TOKEN": "devcontainer-local-token"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-python.python",
+        "hashicorp.terraform"
+      ]
+    }
+  }
+}
