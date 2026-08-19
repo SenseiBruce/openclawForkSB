@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Fail if tracked installer scripts exceed the 500-line reviewability budget.
-# Generated protocol models (Swift/Kotlin) are excluded; historical src/ god
-# files are tracked separately and are not gated here.
+# Generated protocol models are excluded from this gate:
+#   apps/macos/Sources/OpenClawProtocol/GatewayModels.swift
+#   apps/shared/OpenClawKit/Sources/OpenClawProtocol/GatewayModels.swift
+#   apps/ios/Sources/OpenClawProtocol/GatewayModels.swift
+# Historical src/ god files are tracked separately and are not gated here.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

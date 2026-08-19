@@ -52,7 +52,9 @@
         "src/agents/pi-embedded-runner/run/attempt.ollama.ts",
         "src/agents/pi-embedded-runner/run/attempt.tool-names.ts",
         "src/agents/pi-embedded-runner/run/attempt.tool-repair.ts",
-        "src/agents/pi-embedded-runner/run/attempt.prompt.ts"
+        "src/agents/pi-embedded-runner/run/attempt.prompt.ts",
+        "src/agents/subagent-announce.format*.test.ts",
+        "src/memory/qmd-manager*.test.ts"
       ],
       "rules": {
         "eslint/no-unused-vars": "off"

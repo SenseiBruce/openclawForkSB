@@ -15,7 +15,7 @@ const unitIsolatedFilesRaw = [
   "src/security/fix.test.ts",
   // Runtime source guard scans are sensitive to filesystem contention.
   "src/security/temp-path-guard.test.ts",
-  "src/security/audit.test.ts",
+  "src/security/audit.auth.test.ts",
   "src/utils.test.ts",
   "src/auto-reply/tool-meta.test.ts",
   "src/auto-reply/envelope.test.ts",
