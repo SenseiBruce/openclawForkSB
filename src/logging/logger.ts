@@ -9,6 +9,7 @@ import type { ConsoleStyle } from "./console.js";
 import { resolveEnvLogLevelOverride } from "./env-log-level.js";
 import { type LogLevel, levelToMinLevel, normalizeLogLevel } from "./levels.js";
 import { resolveNodeRequireFromMeta } from "./node-require.js";
+import { getPinoLogger } from "./pino-logger.js";
 import { loggingState } from "./state.js";
 import { formatLocalIsoWithOffset } from "./timestamps.js";
 
@@ -146,8 +147,10 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
   let currentFileBytes = getCurrentLogFileBytes(settings.file);
   let warnedAboutSizeCap = false;
 
+  const pinoLogger = getPinoLogger(settings.level);
   logger.attachTransport((logObj: LogObj) => {
     try {
+      pinoLogger.info(logObj);
       const time = formatLocalIsoWithOffset(logObj.date ?? new Date());
       const line = JSON.stringify({ ...logObj, time });
       const payload = `${line}\n`;
