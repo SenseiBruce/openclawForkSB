@@ -36,6 +36,7 @@ import {
 } from "./http-common.js";
 import { validateToolsInvokeInput } from "./http-input-validation.js";
 import { getBearerToken, getHeader } from "./http-utils.js";
+import { validateGatewayRequestInput } from "./request-validator.js";
 
 const DEFAULT_BODY_BYTES = 2 * 1024 * 1024;
 const MEMORY_TOOL_NAMES = new Set(["memory_search", "memory_get"]);
@@ -177,6 +178,11 @@ export async function handleToolsInvokeHttpRequest(
   const parsedBody = validateToolsInvokeInput(bodyUnknown ?? {});
   if (!parsedBody.ok) {
     sendInvalidRequest(res, parsedBody.error);
+    return true;
+  }
+  const validated = validateGatewayRequestInput(parsedBody.value);
+  if (!validated.ok) {
+    sendInvalidRequest(res, validated.error ?? "input validation failed");
     return true;
   }
   const body = parsedBody.value as ToolsInvokeBody;

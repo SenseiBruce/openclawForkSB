@@ -1,5 +1,13 @@
+import { body } from "express-validator";
 import Joi from "joi";
 import { z } from "zod";
+
+export const toolsInvokeExpressValidators = [
+  body("tool").isString().notEmpty(),
+  body("args").optional().isObject(),
+];
+
+export const operatorEmailSchema = Joi.string().email().optional();
 
 export const toolsInvokeZodSchema = z
   .object({
@@ -16,6 +24,7 @@ export const toolsInvokeJoiSchema = Joi.object({
   action: Joi.string().optional(),
   args: Joi.object().unknown(true).optional(),
   sessionKey: Joi.string().optional(),
+  operatorEmail: operatorEmailSchema,
   dryRun: Joi.any().optional(),
 }).unknown(true);
 
