@@ -114,6 +114,21 @@ VS Code / Cursor: open this repo in a [devcontainer](.devcontainer/devcontainer.
 
 Note: `pnpm openclaw ...` runs TypeScript directly (via `tsx`). `pnpm build` produces `dist/` for running via Node / the packaged `openclaw` binary.
 
+`pnpm test` (and the CI `test` / `test-full` jobs) needs **no API keys**. Live provider tests are skipped unless `OPENCLAW_LIVE_TEST=1` (or `LIVE=1`) is set. Discord smoke vars such as `CLAWDBOT_DISCORD_SMOKE_*` are only for optional live smoke.
+
+## Observability
+
+Gateway, agents, and plugins emit structured JSON logs through [`src/logging/logger.ts`](src/logging/logger.ts) (pino). Error tracking is optional Sentry.
+
+| Variable                      | Purpose                                                |
+| ----------------------------- | ------------------------------------------------------ |
+| `OPENCLAW_LOG_LEVEL`          | pino level (`info`, `debug`, `warn`, `error`)          |
+| `SENTRY_DSN`                  | enable `@sentry/node` in the gateway; unset is a no-op |
+| `OTEL_SERVICE_NAME`           | OpenTelemetry service name                             |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint                                |
+
+Uncaught rejections call `Sentry.captureException` when a DSN is configured (`src/infra/unhandled-rejections.ts`).
+
 ## Security defaults (DM access)
 
 OpenClaw connects to real messaging surfaces. Treat inbound DMs as **untrusted input**.
